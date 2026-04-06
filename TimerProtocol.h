@@ -34,6 +34,8 @@ struct __attribute__((packed)) TimerData {
     uint8_t  state;    // STATE_*-Konstante
     uint16_t seconds;  // Zeitwert, Score (Format XXYY) oder Rundenanzahl
     uint8_t  round;    // Laufend: aktuelle Runde. STATE_SETUP: SETUP_SUBMODE_*
-    uint8_t  hour;     // Aktuelle Stunde (0-23) laut Master-RTC/NTP
-    uint8_t  minute;   // Aktuelle Minute (0-59) laut Master-RTC/NTP
+    uint8_t  hour;     // Aktuelle Stunde (0-23) laut Master-RTC
+    uint8_t  minute;   // Aktuelle Minute (0-59) laut Master-RTC
+    uint8_t  day;      // Aktueller Tag (1-31) laut Master-RTC
+    uint8_t  month;    // Aktueller Monat (1-12) laut Master-RTC
 };

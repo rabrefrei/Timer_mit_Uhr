@@ -91,13 +91,15 @@ void renderClock() {
 
 void renderDate() {
     FastLED.clear();
-    CRGB c = CRGB(0, 180, 200);
+    CRGB c = CRGB(220, 100, 0); // Orange – unterscheidet sich klar von Cyan (Uhrzeit)
 
     displayDigit(3, clockDay   / 10, c);
     displayDigit(2, clockDay   % 10, c);
     displayDigit(1, clockMonth / 10, c);
     displayDigit(0, clockMonth % 10, c);
-    setColon(true, c); // Punkt als Trenner, nicht blinkend
+    // Nur unterer Punkt (LED 43) als Dezimalpunkt, oberer bleibt aus
+    leds[42] = CRGB::Black;
+    leds[43] = c;
     FastLED.show();
 }
 

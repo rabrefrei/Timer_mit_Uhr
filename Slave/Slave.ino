@@ -36,11 +36,6 @@ uint8_t  clockHour    = 0;
 uint8_t  clockMinute  = 0;
 uint32_t clockRefMs   = 0;
 
-// --- Datum ---
-bool    dateKnown  = false;
-uint8_t clockDay   = 1;
-uint8_t clockMonth = 1;
-
 // ============================================================
 // Hilfsfunktionen für das LED-Display
 // ============================================================
@@ -82,24 +77,6 @@ void renderClock() {
     displayDigit(1, m / 10, c);
     displayDigit(0, m % 10, c);
     setColon((millis() / 1000) % 2 == 0, c);
-    FastLED.show();
-}
-
-// ============================================================
-// Datumsanzeige TT.MM (Punkt immer an, kein Blinken)
-// ============================================================
-
-void renderDate() {
-    FastLED.clear();
-    CRGB c = CRGB(220, 100, 0); // Orange – unterscheidet sich klar von Cyan (Uhrzeit)
-
-    displayDigit(3, clockDay   / 10, c);
-    displayDigit(2, clockDay   % 10, c);
-    displayDigit(1, clockMonth / 10, c);
-    displayDigit(0, clockMonth % 10, c);
-    // Nur unterer Punkt (LED 43) als Dezimalpunkt, oberer bleibt aus
-    leds[42] = CRGB::Black;
-    leds[43] = c;
     FastLED.show();
 }
 
@@ -163,12 +140,6 @@ void onDataRecv(const esp_now_recv_info* recv_info, const uint8_t* data, int len
             clockRefMs  = millis();
             clockSynced = true;
         }
-        if (incomingBuffer.day >= 1 && incomingBuffer.day <= 31 &&
-            incomingBuffer.month >= 1 && incomingBuffer.month <= 12) {
-            clockDay   = incomingBuffer.day;
-            clockMonth = incomingBuffer.month;
-            dateKnown  = true;
-        }
     }
 }
 
@@ -196,24 +167,10 @@ void setup() {
 void loop() {
     static uint32_t lastRender = 0;
 
-    // Hilfsfunktion: Uhr oder Datum je nach 5-Sekunden-Takt zeichnen
-    auto renderMenuDisplay = [&]() {
-        static uint32_t toggleMs  = 0;
-        static bool     showDate  = false;
-
-        if (millis() - toggleMs >= 5000) {
-            // Nur umschalten wenn Datum bekannt, sonst immer Uhrzeit
-            if (dateKnown) showDate = !showDate;
-            toggleMs = millis();
-        }
-        if (showDate && dateKnown) renderDate();
-        else                       renderClock();
-    };
-
     if (!newData) {
         if (incomingBuffer.state == STATE_MENU && clockSynced) {
             if (millis() - lastRender >= 500) {
-                renderMenuDisplay();
+                renderClock();
                 lastRender = millis();
             }
         }
@@ -229,7 +186,7 @@ void loop() {
     newData = false;
 
     if (incomingBuffer.state == STATE_MENU) {
-        if (clockSynced) renderMenuDisplay();
+        if (clockSynced) renderClock();
         else             FastLED.clear(true);
     } else {
         renderDisplay(incomingBuffer);

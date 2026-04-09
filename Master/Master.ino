@@ -57,12 +57,9 @@ volatile bool     isDimmed = false, isPaused = false;
 volatile bool     needsMenuRedraw = false;
 SemaphoreHandle_t sendMutex = nullptr;
 
-// --- Manuelle Zeit- und Datumseinstellung ---
+// --- Manuelle Uhrzeiteinstellung ---
 uint8_t setClockHour   = 12;
 uint8_t setClockMinute = 0;
-uint8_t setClockDay    = 1;
-uint8_t setClockMonth  = 1;
-uint8_t setClockScreen = 0;  // 0 = Zeit einstellen, 1 = Datum einstellen
 
 struct Zone { int16_t x, y, w, h; bool contains(int16_t tx, int16_t ty) const { return tx>=x && tx<x+w && ty>=y && ty<y+h; } };
 constexpr Zone zMenuSport{0,0,160,120}, zMenuStop{160,0,160,120}, zMenuCount{0,120,160,120}, zMenuScore{160,120,160,120};
@@ -163,34 +160,21 @@ void sendTimerUpdate() {
 // Manuelle Uhrzeiteinstellung
 // ==========================================
 
-/** Zeichnet den Einstellungsdialog (Screen 0 = Zeit, Screen 1 = Datum). */
 void drawSetClock() {
     M5.Display.startWrite();
     M5.Display.fillScreen(BLACK);
 
-    const bool isDate = (setClockScreen == 1);
-
-    // Titel + Fortschrittshinweis
+    // Titel
     M5.Display.setFont(&fonts::Font2);
     M5.Display.setTextDatum(top_center);
     M5.Display.setTextColor(0x00BFFFU);
-    M5.Display.drawString(isDate ? "DATUM EINSTELLEN" : "UHRZEIT EINSTELLEN", 160, 4);
-
-    // Schrittanzeige rechts oben
-    M5.Display.setTextDatum(top_right);
-    M5.Display.setTextColor(0x444444U);
-    M5.Display.drawString(isDate ? "2/2" : "1/2", 317, 4);
+    M5.Display.drawString("UHRZEIT EINSTELLEN", 160, 4);
 
     // Spalten-Labels
     M5.Display.setTextDatum(top_center);
     M5.Display.setTextColor(0x666666U);
-    if (isDate) {
-        M5.Display.drawString("TAG",   80, 20);
-        M5.Display.drawString("MONAT", 240, 20);
-    } else {
-        M5.Display.drawString("STUNDE", 80, 20);
-        M5.Display.drawString("MINUTE", 240, 20);
-    }
+    M5.Display.drawString("STUNDE", 80, 20);
+    M5.Display.drawString("MINUTE", 240, 20);
 
     // Trennlinie Mitte
     M5.Display.drawLine(160, 20, 160, 215, 0x222222U);
@@ -204,21 +188,14 @@ void drawSetClock() {
     M5.Display.setFont(&fonts::Font8);
     M5.Display.setTextDatum(middle_center);
     M5.Display.setTextColor(WHITE);
-    if (isDate) {
-        snprintf(buf, sizeof(buf), "%02d", setClockDay);
-        M5.Display.drawString(buf,  80, 130);
-        snprintf(buf, sizeof(buf), "%02d", setClockMonth);
-        M5.Display.drawString(buf, 240, 130);
-    } else {
-        snprintf(buf, sizeof(buf), "%02d", setClockHour);
-        M5.Display.drawString(buf,  80, 130);
-        snprintf(buf, sizeof(buf), "%02d", setClockMinute);
-        M5.Display.drawString(buf, 240, 130);
-    }
+    snprintf(buf, sizeof(buf), "%02d", setClockHour);
+    M5.Display.drawString(buf,  80, 130);
+    snprintf(buf, sizeof(buf), "%02d", setClockMinute);
+    M5.Display.drawString(buf, 240, 130);
 
     // Trennzeichen zwischen den Werten
     M5.Display.setTextColor(0x444444U);
-    M5.Display.drawString(isDate ? "." : ":", 160, 130);
+    M5.Display.drawString(":", 160, 130);
 
     // Pfeile unten
     M5.Display.fillTriangle( 80, 215,  55, 155, 105, 155, 0x00BFFFU);
@@ -230,7 +207,7 @@ void drawSetClock() {
     M5.Display.setFont(&fonts::Font2);
     M5.Display.setTextDatum(middle_center);
     M5.Display.setTextColor(0x00BFFFU);
-    M5.Display.drawString(isDate ? "SPEICHERN" : "WEITER  >", 160, 227);
+    M5.Display.drawString("SPEICHERN", 160, 227);
 
     M5.Display.endWrite();
 }
@@ -240,12 +217,10 @@ void applySetClock() {
     dt.time.hours   = setClockHour;
     dt.time.minutes = setClockMinute;
     dt.time.seconds = 0;
-    dt.date.date    = setClockDay;
-    dt.date.month   = setClockMonth;
+    // Datum bleibt unverändert
     M5.Rtc.setDateTime(dt);
 }
 
-/** Touch-Handling für den Zeit/Datum-Einstellungsdialog. */
 void handleSetClockTouch(const m5::touch_detail_t& t) {
     static uint32_t lastRep = 0;
     bool rep = t.isHolding() && (millis() - lastRep > 150);
@@ -254,50 +229,30 @@ void handleSetClockTouch(const m5::touch_detail_t& t) {
     bool changed = false;
 
     if (t.wasClicked() || rep) {
-        if (setClockScreen == 0) {
-            // Screen 0: Uhrzeit
-            if      (zClockHourUp.contains(t.x, t.y))   { setClockHour   = (setClockHour   +  1) % 24; changed = true; }
-            else if (zClockHourDown.contains(t.x, t.y)) { setClockHour   = (setClockHour   + 23) % 24; changed = true; }
-            else if (zClockMinUp.contains(t.x, t.y))    { setClockMinute = (setClockMinute +  1) % 60; changed = true; }
-            else if (zClockMinDown.contains(t.x, t.y))  { setClockMinute = (setClockMinute + 59) % 60; changed = true; }
-        } else {
-            // Screen 1: Datum
-            if      (zClockHourUp.contains(t.x, t.y))   { if (setClockDay   < 31) setClockDay++;   else setClockDay   = 1;  changed = true; }
-            else if (zClockHourDown.contains(t.x, t.y)) { if (setClockDay   >  1) setClockDay--;   else setClockDay   = 31; changed = true; }
-            else if (zClockMinUp.contains(t.x, t.y))    { if (setClockMonth < 12) setClockMonth++; else setClockMonth = 1;  changed = true; }
-            else if (zClockMinDown.contains(t.x, t.y))  { if (setClockMonth >  1) setClockMonth--; else setClockMonth = 12; changed = true; }
-        }
+        if      (zClockHourUp.contains(t.x, t.y))   { setClockHour   = (setClockHour   +  1) % 24; changed = true; }
+        else if (zClockHourDown.contains(t.x, t.y)) { setClockHour   = (setClockHour   + 23) % 24; changed = true; }
+        else if (zClockMinUp.contains(t.x, t.y))    { setClockMinute = (setClockMinute +  1) % 60; changed = true; }
+        else if (zClockMinDown.contains(t.x, t.y))  { setClockMinute = (setClockMinute + 59) % 60; changed = true; }
     }
 
     if (t.wasClicked() && zClockSave.contains(t.x, t.y)) {
-        if (setClockScreen == 0) {
-            // Weiter zu Datum-Screen
-            setClockScreen = 1;
-            M5.Speaker.tone(800, 50);
-            drawSetClock();
-            return;
-        } else {
-            // Speichern und zurück
-            applySetClock();
-            if (sendMutex && xSemaphoreTake(sendMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-                TimerData syncPacket{STATE_MENU, 0, 0,
-                                     setClockHour, setClockMinute,
-                                     setClockDay,  setClockMonth};
-                esp_now_send(slaveAddress, (uint8_t*)&syncPacket, sizeof(syncPacket));
-                xSemaphoreGive(sendMutex);
-            }
-            M5.Speaker.tone(1000, 200);
-            setClockScreen = 0;
-            currentAppMode = AppMode::MAIN_MENU;
-            drawMainMenu();
-            return;
+        applySetClock();
+        if (sendMutex && xSemaphoreTake(sendMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+            TimerData syncPacket{STATE_MENU, 0, 0,
+                                 setClockHour, setClockMinute,
+                                 dataToSend.day, dataToSend.month};
+            esp_now_send(slaveAddress, (uint8_t*)&syncPacket, sizeof(syncPacket));
+            xSemaphoreGive(sendMutex);
         }
+        M5.Speaker.tone(1000, 200);
+        currentAppMode = AppMode::MAIN_MENU;
+        drawMainMenu();
+        return;
     }
 
     // Long Press → abbrechen ohne Speichern
     if (t.wasHold()) {
         M5.Speaker.tone(400, 150);
-        setClockScreen = 0;
         currentAppMode = AppMode::MAIN_MENU;
         drawMainMenu();
         return;
@@ -421,9 +376,7 @@ void handleMainMenuTouch(const m5::touch_detail_t& t) {
         getCurrentTime(h, m, d, mo);
         setClockHour   = h;
         setClockMinute = m;
-        setClockDay    = d;
-        setClockMonth  = mo;
-        setClockScreen = 0;
+        (void)d; (void)mo;
         currentAppMode = AppMode::SET_CLOCK;
         M5.Speaker.tone(600, 100);
         drawSetClock();
